@@ -1,7 +1,7 @@
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
+import numpy as np
 
-
-def get_beat_timestamps(songfile_path):
+def get_beat_timestamps(songfile_path) -> dict:
     # Initialize the RNN beat processor
     proc = RNNBeatProcessor()
 
@@ -19,5 +19,9 @@ def get_beat_timestamps(songfile_path):
     beat_frames = (beats * 100).astype(int)
     beat_confidences = activations[beat_frames]
 
+    beat_dict = {'file name': songfile_path,
+                 'timestamps': beats.tolist(),
+                 'confidences': beat_confidences.tolist()}
+
     # Return detected beats
-    return beats, beat_confidences
+    return beat_dict

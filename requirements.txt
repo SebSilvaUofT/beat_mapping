@@ -1,0 +1,10 @@
+pandas~=2.2.3
+sounddevice~=0.5.1
+numpy~=2.0.2
+keyboard~=0.13.5
+audiosegment~=0.23.0
+soundfile~=0.12.1
+pyrubberband~=0.4.0
+scipy~=1.13.1
+pydub~=0.25.1
+madmom~=0.17.dev0
