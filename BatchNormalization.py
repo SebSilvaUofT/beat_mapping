@@ -50,8 +50,9 @@ def normalize_wav(input_folder, output_folder, target_lufs=-16):
 
                 cmd = [
                     "ffmpeg", "-i", input_path, "-af",
-                    f"loudnorm=I={target_lufs}:LRA=7:TP=-1.5", output_path
+                    f"loudnorm=I={target_lufs}:TP=-1.5", output_path  # Removed LRA=7
                 ]
+
                 subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 normalized_lufs = get_lufs(output_path)
