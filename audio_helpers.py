@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import audiosegment
 import soundfile as sf
 import pyrubberband as pyrb
+import re
 
 
 # Function to generate a tone of given frequency and duration
@@ -84,12 +85,26 @@ def PV_stretch(song_path, rate, target_dB):
     # return y_stretch, sr
 
 
-def convert_m4a_to_wav(filename):
-    # Load the .m4a file
-    audio = AudioSegment.from_file(filename, format="m4a")
-    # Export as .wav
-    pre, ext = os.path.splitext(filename)
-    audio.export(pre + ".wav", format="wav")
+def convert_m4a_to_wav(m4a_filepath, itunes_lib_path, output_folder):
+    """Converts an M4A file to WAV and stores it in a flat directory."""
+
+    # Extract the filename from the .m4a path (without extension)
+    song_name = os.path.splitext(os.path.basename(m4a_filepath))[0]
+
+    # Replace problematic characters for Windows filenames
+    song_name = re.sub(r'[<>:"/\\|?*]', '_', song_name)
+
+    # Create the output .wav filename
+    wav_path = os.path.join(output_folder, f"{song_name}.wav")
+
+    # Convert only if the WAV file does not already exist
+    if not os.path.exists(wav_path):
+        # os.system(f'ffmpeg -i "{m4a_filepath}" "{wav_path}" -y')  # Convert to WAV
+        audio = AudioSegment.from_file(m4a_filepath, format="m4a")
+        audio.export(wav_path, format="wav")
+
+    print(wav_path)
+    return wav_path
 
 
 def crossfade_songs(song1: AudioSegment, song2: AudioSegment, start_time_in_ms,
