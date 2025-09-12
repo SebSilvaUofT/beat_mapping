@@ -1,6 +1,10 @@
+import ast
 import os
 import subprocess
 import json
+import pandas as pd
+import bisect
+
 
 def get_lufs(file_path):
     """Returns the LUFS (integrated loudness) of a WAV file using FFmpeg."""
@@ -31,48 +35,79 @@ def get_lufs(file_path):
         print(f"Error extracting LUFS for {file_path}: {e}")
         return None
 
-def normalize_wav(input_folder, output_folder, target_lufs=-16):
-    """Normalizes all WAV files in a folder to the target LUFS."""
+
+def normalize_wav(input_folder, output_folder, csv_path, target_lufs=-9, target_duration=130):
+    """Normalizes all WAV files in a folder to the target LUFS and trims to target duration."""
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
     log_data = []
 
-    for filename in os.listdir(input_folder):
-        if filename.lower().endswith(".wav"):
-            input_path = os.path.join(input_folder, filename)
-            output_path = os.path.join(output_folder, f"normalized_{filename}")
+    # Load CSV file
+    df = pd.read_csv(csv_path, converters={"timestamps": ast.literal_eval, "confidences": ast.literal_eval})
 
-            original_lufs = get_lufs(input_path)
 
-            if original_lufs is not None:
-                print(f"Processing: {filename} (Original LUFS: {original_lufs:.2f})")
+    for idx, row in df.iterrows():
+        filename = row['file name']
+        start_time = row['Start_Time']
+        row["timestamps"] = list(map(float, row["timestamps"]))
+        input_path = os.path.join(input_folder, filename)
+        output_path = os.path.join(output_folder, f"normalized_{filename}")
 
-                cmd = [
-                    "ffmpeg", "-i", input_path, "-af",
-                    f"loudnorm=I={target_lufs}:TP=-1.5", output_path  # Removed LRA=7
-                ]
+        if not os.path.exists(input_path):
+            print(f"Skipping {filename}: File not found.")
+            continue
 
-                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        original_lufs = get_lufs(input_path)
 
-                normalized_lufs = get_lufs(output_path)
-                log_data.append({
-                    "file": filename,
-                    "original_LUFS": original_lufs,
-                    "normalized_LUFS": normalized_lufs
-                })
+        if original_lufs is not None:
+            print(f"Processing: {filename} (Original LUFS: {original_lufs:.2f})")
+
+            # Determine trim start time (if stable duration start is less than 2 seconds in, dont trim the start
+            if start_time <= 2.0:
+                start_time = 0
             else:
-                print(f"Skipping {filename} due to LUFS extraction error.")
+                # remove the fade in timestamps and offset them appropriately
+                start_index = bisect.bisect_left(row['timestamps'], start_time)
+                df.at[idx, 'timestamps'] = [timestamp - start_time for timestamp in row['timestamps'][start_index:]]
+                df.at[idx, 'confidences'] = row['confidences'][start_index:]
 
-    # Save log to a file
-    log_path = os.path.join(output_folder, "loudness_log.json")
-    with open(log_path, "w") as log_file:
-        json.dump(log_data, log_file, indent=4)
+            last_index = bisect.bisect(row['timestamps'], target_duration)
+            # Trim timestamps and confidences in the original DataFrame
+            df.at[idx, 'timestamps'] = df.at[idx, 'timestamps'][:last_index]
+            df.at[idx, 'confidences'] = df.at[idx, 'confidences'][:last_index]
 
-    print(f"Normalization complete! Log saved at {log_path}")
+            print("last timestamp: ",  df.at[idx, 'timestamps'][-1])
+
+            # # FFmpeg command for loudness normalization and trimming
+            cmd = [
+                "ffmpeg", "-i", input_path, "-af",
+                f"loudnorm=I={target_lufs}:TP=-1.5",
+                "-ss", str(start_time), "-t", str(target_duration),
+                "-ar", "44100",  # Specify the sample rate here
+                output_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            normalized_lufs = get_lufs(output_path)
+            log_data.append({
+                "file": filename,
+                "original_LUFS": original_lufs,
+                "normalized_LUFS": normalized_lufs,
+                "trim_start": start_time
+            })
+        else:
+            print(f"Skipping {filename} due to LUFS extraction error.")
+
+
+    output_csv = "normalized_library_using_BEATS.csv"
+    # Save the cleaned file
+    df.to_csv(output_csv, index=False)
+    print(f"Cleaned CSV file saved: {output_csv}")
 
 
 # Example usage
-input_folder = "Music Library"
-output_folder = "normalizedWavs"
-normalize_wav(input_folder, output_folder, target_lufs=-9)
+input_folder = "converted_wavs"
+output_folder = "normalized_library_using_BEATS_and9LUFS"
+
+normalize_wav(input_folder, output_folder, "App Music Library.csv", target_lufs=-9)
