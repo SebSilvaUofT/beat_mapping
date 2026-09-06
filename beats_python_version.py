@@ -9,7 +9,7 @@ hRun = 10      # Minimum stable run duration (s)
 hGap = 2.5     # Max gap duration (s)
 
 # Load the CSV file
-csv_file = "App Music Library.csv"    # Replace with your CSV file path
+csv_file = "App Music Library.csv"
 output_file = "beats_output_with_segments.csv"    # Output file to save results
 
 # Load CSV into DataFrame
